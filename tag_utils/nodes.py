@@ -1,124 +1,86 @@
 from surlex import MacroRegistry, Surlex, parsed_surlex_object 
 from django import template
-register_macro = MacroRegistry.register
+import copy
 
-class ComplexMacro(object):
-    def __str__(self):
-        return ""
+register_macro = MacroRegistry.register
 
 RE_INT = r'\d+|[\w\.]+'
 RE_STR = r'\'.*\'|".*"|[\w\.]+'
-RE_AS = r'as \w+'
-optional = lambda x : ' (%s)' % x
+RE_KWARG = r'([\w\.]+)=(\'.*\'|".*"|[\w\.]+|\d+)'
+RE_VAR = r'\w+'
+
 
 register_macro('int', RE_INT)
 register_macro('string', RE_STR)
-register_macro('as', RE_AS)
-register_macro('optional_int', optional(RE_INT))
-register_macro('optional_string', optional(RE_STR))
-register_macro('optional_as', optional(RE_AS))
+register_macro('var', RE_VAR)
+register_macro('kwarg', RE_KWARG)
 
-def liberal_getattr(f, key):
-    value = None
-    if getattr(f, 'has_key', None):
-        value = f[key]
-    test_attr = getattr(f, key, None)
-    if test_attr:
-        value = test_attr
-    if callable(value):
-        value = value()
-    if value is None:
-        getattr(f, key)
-    return value
+def pre_macro_kwarg(value, parser):
+    key, value = value.split('=')
+    return (key, parser.compile_filter(value))
 
-def statement(context, value):
-    value_parts = value.split('.')
-    current = context
-    value = None
-    for part in value_parts:
-        current = liberal_getattr(current, part)
-    if isinstance(current, str):
-        current = "'%s'" % current
-    return current
+def post_macro_kwarg(key, value, context):
+    return (value[0], value[1].resolve(context))
 
-def compose_hook(test_is_literal, post_process):
-    def fn(context, value):
-        try:
-            new_value = value
-            if not test_is_literal(value):
-                new_value = statement(context, value)
-            return post_process(new_value)
-        except AttributeError:
-            return None
-    return fn
-
-def is_string(value):
+def post_macro_string(key, value, context):
+    value = value.resolve(context)
     if value[0] in ('"', "'"):
-        return True
+        value = value[1:-1]
+    return key, value
 
-def is_int(value):
-    try:
-        int(value)
-    except ValueError:
-        return False
-    return True
+DEFAULT_MACRO_PREHOOKS = {
+    'string':lambda value, parser: parser.compile_filter(value),
+    'int':lambda value, parser: parser.compile_filter(value),
+    'var':lambda value, parser: value,
+    'kwarg':pre_macro_kwarg,
+}
 
-def to_string(value):
-    return str(value[1:-1])
-
+DEFAULT_MACRO_POSTHOOKS = {
+    'int':lambda key, value, context: (key, int(value.resolve(context))),
+    'string':post_macro_string,
+    'kwarg':post_macro_kwarg,
+}
 class ParsedNode(template.Node):
-    MACRO_HOOKS = {
-        'int':compose_hook(is_int, int),
-        'optional_int':compose_hook(is_int, int),
-        'string':compose_hook(is_string, to_string),
-        'optional_string':compose_hook(is_string, to_string),
-        'as':compose_hook(lambda x:True, str),
-        'optional_as':compose_hook(lambda x:True, str),
-    }
-
-    def __init__(self, surlex_string=None):
-        if surlex_string:
-            self.surlex = parsed_surlex_object(surlex_string)
-
-    def set_parsed_args(self, parsed_args):
-        self.parsed_args = parsed_args
-
-    def process_value(self, parser, key, value):
-        if key in self.surlex.groupmacros.keys():
-            macro = self.surlex.groupmacros[key]
-            if macro.startswith('optional'):
-                offset = 1
-                value = value[offset:]
-            if 'as' in macro:
-                value = value[3:]
-        return value
+    def __init__(self, function_name, surlex_string, func, macro_pre=None, macro_post=None):
+        self.function_name = function_name
+        self.surlex = parsed_surlex_object(' '.join([function_name, surlex_string]))
+        if macro_pre is None:
+            macro_pre = DEFAULT_MACRO_PREHOOKS
+        if macro_post is None:
+            macro_post = DEFAULT_MACRO_POSTHOOKS 
+        self.macro_pre = macro_pre
+        self.macro_post = macro_post
+        self.func = func
 
     def __call__(self, parser, token):
         match = self.surlex.match(token.contents)
         if match is None:
-            raise template.TemplateSyntaxError('Failed to match against %s with "%s".' % (self.surlex.regex, token.contents))
+            raise template.TemplateSyntaxError('%s failed to match %s against %s.' % (self.function_name, self.surlex, token.contents))
         
-        parsed_args = dict([(k, self.process_value(parser, k, match[k])) for k in match])
-        c_self = self.__class__()
-        c_self.surlex = self.surlex
-        c_self.set_parsed_args(parsed_args)
-        return c_self
+        parsed_args = {}
+        for key, val in match.iteritems():
+            if val is not None and self.surlex.groupmacros[key] in self.macro_pre:
+                parsed_args[key] = self.macro_pre[self.surlex.groupmacros[key]](val, parser)
+            else:
+                parsed_args[key] = val
+
+        cloned_self = copy.deepcopy(self)
+        cloned_self.parsed_args = parsed_args
+        return cloned_self
 
     def render(self, context):
         kwargs = {}
-        for key in self.surlex.groupmacros.keys():
-            macro = self.surlex.groupmacros[key]
-            if key in self.parsed_args.keys():
-                value = self.parsed_args[key]
-                if macro in self.MACRO_HOOKS:
-                    value = self.MACRO_HOOKS[macro](context, value)      #transform the value into the right type
-                kwargs[str(key)] = value
-        try:
-            return self.process(context, **kwargs)
-        except:
-            return ''
+        macros = self.surlex.groupmacros
+        for key, value in self.parsed_args.iteritems():
+            if value is not None:
+                if key in self.surlex.groupmacros and self.surlex.groupmacros[key] in self.macro_post:
+                    key, value = self.macro_post[self.surlex.groupmacros[key]](key, value, context)
+                kwargs.update({
+                    str(key):value
+                })
+        kwargs['context'] = context
+        return self.func(**kwargs)
 
-    def process(self, context, *args, **kwargs):
-        return ""
-
-SINGLE_VALUE = lambda x:x[0]
+def define_parsed_tag(reg, fn, match):
+    klass = type(object)('%s_ParsedNode'%fn.func_name, (ParsedNode,), {'process':fn})
+    return reg.tag(fn.func_name, klass(fn.func_name, match, fn))

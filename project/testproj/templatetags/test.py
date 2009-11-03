@@ -1,11 +1,14 @@
-from tag_utils import ParsedNode
+from tag_utils import define_parsed_tag 
 from django import template
 register = template.Library()
-class TestParsedNode(ParsedNode):
-    def process(self, context, arg1, arg2, asvar=None):
-        if asvar is None:
-            asvar = '<None>'
-        return u"%d %s as %s" % (arg1, arg2, asvar)
 
-register.tag('test_also_parsed', TestParsedNode(r'test_parsed <arg1:int> <arg2:string>(<asvar:optional_string>)'))
-register.tag('test_parsed', TestParsedNode(r'test_parsed <arg1:int> <arg2:string>(<asvar:optional_as>)'))
+def test_parsed(context, arg1, arg2, asvar=None):
+    if asvar is None:
+        asvar = '<None>'
+    return u"%d %s as %s" % (arg1, arg2, asvar)
+
+def test_kwargs(context, yarg):
+    return u"%s" % yarg
+
+define_parsed_tag(register, test_parsed, r'<arg1:int> <arg2:string>( as <asvar:var>)')
+define_parsed_tag(register, test_kwargs, r'<kw:kwarg>')
