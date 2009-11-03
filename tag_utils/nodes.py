@@ -82,5 +82,5 @@ class ParsedNode(template.Node):
         return self.func(**kwargs)
 
 def define_parsed_tag(reg, fn, match):
-    klass = type(object)('%s_ParsedNode'%fn.func_name, (ParsedNode,), {'process':fn})
-    return reg.tag(fn.func_name, klass(fn.func_name, match, fn))
+    obj = ParsedNode(fn.func_name, match, fn)
+    return reg.tag(fn.func_name, obj)
