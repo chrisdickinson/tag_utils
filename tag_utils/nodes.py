@@ -68,8 +68,10 @@ class ParsedNode(template.Node):
         cloned_self.parsed_args = parsed_args
         return cloned_self
 
-    def render(self, context):
-        kwargs = {}
+    def render(self, context, extra_kwargs=None):
+        kwargs = extra_kwargs 
+        if kwargs is None:
+            kwargs = {}
         macros = self.surlex.groupmacros
         for key, value in self.parsed_args.iteritems():
             if value is not None:
@@ -81,6 +83,28 @@ class ParsedNode(template.Node):
         kwargs['context'] = context
         return self.func(**kwargs)
 
+class ParsedBlock(ParsedNode):
+    def set_nodelist(self, nodelist):
+        self.nodelist = nodelist
+
+    def __call__(self, parser, token):
+        cloned_node = super(ParsedBlock, self).__call__(parser, token)
+        nodelist = parser.parse(('end%s'%self.function_name,))
+        cloned_node.set_nodelist(nodelist)
+        parser.delete_first_token() 
+        return cloned_node
+
+    def render(self, context, extra_kwargs=None):
+        kwargs = extra_kwargs
+        if kwargs is None:  
+            kwargs = {}
+        kwargs['nodelist'] = self.nodelist
+        return super(ParsedBlock, self).render(context, kwargs)
+
 def define_parsed_tag(reg, fn, match):
     obj = ParsedNode(fn.func_name, match, fn)
+    return reg.tag(fn.func_name, obj)
+
+def define_parsed_block(reg, fn, match):
+    obj = ParsedBlock(fn.func_name, match, fn)
     return reg.tag(fn.func_name, obj)

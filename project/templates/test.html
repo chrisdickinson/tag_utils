@@ -4,3 +4,7 @@ hey there we're testing stuff
 <br/>{% test_parsed xxx_i xxx_s %}
 <br/>{% test_parsed 12 "things" as buhh %}
 <br/>{% test_kwargs yarg='blorg' %}
+
+{% test_block gary=xxx_s %}
+    <h1>{{ gary }}</h1>
+{% endtest_block %}
