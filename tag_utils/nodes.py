@@ -8,9 +8,10 @@ RE_INT = r'\d+|[\w\.]+'
 RE_STR = r'\'.*\'|".*"|[\w\.]+'
 RE_KWARG = r'([\w\.]+)=(\'.*\'|".*"|[\w\.]+|\d+)'
 RE_VAR = r'\w+'
-
+RE_ANY = r'([\w\.]+)'
 
 register_macro('int', RE_INT)
+register_macro('any', RE_ANY)
 register_macro('string', RE_STR)
 register_macro('var', RE_VAR)
 register_macro('kwarg', RE_KWARG)
@@ -30,6 +31,7 @@ def post_macro_string(key, value, context):
 
 DEFAULT_MACRO_PREHOOKS = {
     'string':lambda value, parser: parser.compile_filter(value),
+    'any':lambda value, parser: parser.compile_filter(value),
     'int':lambda value, parser: parser.compile_filter(value),
     'var':lambda value, parser: value,
     'kwarg':pre_macro_kwarg,
@@ -37,6 +39,7 @@ DEFAULT_MACRO_PREHOOKS = {
 
 DEFAULT_MACRO_POSTHOOKS = {
     'int':lambda key, value, context: (key, int(value.resolve(context))),
+    'any':lambda key, value, context: (key, value.resolve(context)),
     'string':post_macro_string,
     'kwarg':post_macro_kwarg,
 }
