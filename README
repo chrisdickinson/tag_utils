@@ -1,0 +1,13 @@
+tag_utils is a simple library for creating template tags and blocks
+for the Django templating language. It's designed around Surlex
+(by Cody Soyland), and provides helper functions for creating both
+template tags and blocks.
+
+The helper functions take a function as one of the arguments, and
+it's important to note that the name of that function will be the
+name that's registered with django. With the parsed_block shortcut,
+it will parse until it finds a tag called {% end<yourfunctionname> %}.
+
+Installation (for testing, etc!):
+$ python bootstrap.py
+$ bin/buildout
