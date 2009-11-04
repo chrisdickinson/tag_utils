@@ -137,6 +137,29 @@ class ParsedNodeTests(TestCase):
         for i in templates_cmp:
             self.assertRaises(TemplateSyntaxError, i.render, context) 
 
+    def test_empty_does_not_break(self):
+        from django.template import builtins
+        from django.template import Library
+        from django.template import Template
+
+        def test_empty_values_are_okay(context, *args, **kwargs):
+            self.assertTrue(True)
+            return u''
+
+        template = "{% test_parse dne_int dne_str dne_any dne_var %}"
+        register = Library()
+        register.tag('test_parse', ParsedNode('test_parse', '<arg1:int> <arg2:string> <arg3:any> <arg4:var>', test_empty_values_are_okay))
+        builtins.append(register)
+
+        context = {
+        }
+
+        template_obj = Template(template)
+        try:
+            template_obj.render(context)
+        except Exception, e:
+            self.fail("%s was raised when rendering a parsed tag with empty arguments." % str(e))
+
 
 class ParsedBlockTests(TestCase):
     pass

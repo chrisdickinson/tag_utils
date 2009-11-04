@@ -25,8 +25,15 @@ def post_macro_kwarg(key, value, context):
 
 def post_macro_string(key, value, context):
     value = value.resolve(context)
-    if value[0] in ('"', "'"):
-        value = value[1:-1]
+    if len(value):
+        if value[0] in ('"', "'"):
+            value = value[1:-1]
+    return key, value
+
+def post_macro_int(key, value, context):
+    value = value.resolve(context)
+    if value:
+        value = int(value)
     return key, value
 
 DEFAULT_MACRO_PREHOOKS = {
@@ -38,8 +45,8 @@ DEFAULT_MACRO_PREHOOKS = {
 }
 
 DEFAULT_MACRO_POSTHOOKS = {
-    'int':lambda key, value, context: (key, int(value.resolve(context))),
     'any':lambda key, value, context: (key, value.resolve(context)),
+    'int':post_macro_int,
     'string':post_macro_string,
     'kwarg':post_macro_kwarg,
 }
