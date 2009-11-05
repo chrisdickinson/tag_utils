@@ -1,8 +1,8 @@
-from surlex import MacroRegistry, Surlex, parsed_surlex_object 
+from surlex import DefaultMacroRegistry, Surlex, parsed_surlex_object 
 from django import template
 import copy
 
-register_macro = MacroRegistry.register
+register_macro = DefaultMacroRegistry.register
 
 RE_INT = r'\d+|[\w\.]+'
 RE_STR = r'\'.*\'|".*"|[\w\.]+'
