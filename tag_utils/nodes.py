@@ -74,7 +74,7 @@ class ParsedNode(template.Node):
             else:
                 parsed_args[key] = val
 
-        cloned_self = copy.deepcopy(self)
+        cloned_self = copy.copy(self)
         cloned_self.parsed_args = parsed_args
         return cloned_self
 
